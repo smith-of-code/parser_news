@@ -41,6 +41,8 @@ class ParserNewsRbcJob implements ShouldQueue
     public function handle()
     {
         $response = \Http::get($this->url);
+        $hostSlug = Str::slug($response->transferStats->getRequest()->getUri()->getHost());
+
         $xmlObject = simplexml_load_string($response->body());
         Log::debug('parsing',['response'=>$response]);
 
@@ -48,15 +50,15 @@ class ParserNewsRbcJob implements ShouldQueue
         $jsonFormatData = json_encode($xmlObject);
         $result = json_decode($jsonFormatData, true);
 
-        News::all()->each(function (News $e){
+        News::whereSource($hostSlug)->each(function (News $e){
             $e->delete();
         });
 
-        Image::all()->each(function (Image $e){
+        Image::wherePath('%'.$hostSlug.'%')->each(function (Image $e){
             $e->delete();
         });
 
-        \Storage::disk('public')->deleteDirectory('img');
+        \Storage::disk('public')->deleteDirectory('img/'.$hostSlug);
 
         foreach ($result['channel']['item'] as $item){
 
@@ -67,10 +69,15 @@ class ParserNewsRbcJob implements ShouldQueue
                 'description'=> $item['description']??'',
                 'datetime_pub'=>$item['pubDate']?Carbon::rawParse($item['pubDate'])->toDate():null,
                 'author'=>$item['author']??'',
+                'source'=>$hostSlug,
             ])->save();
 
             if (isset($item['enclosure'])){
-                $imageIds = $this->saveImages($item['enclosure'],Carbon::rawParse($item['pubDate'])->toDate());
+                $imageIds = $this->saveImages(
+                    $item['enclosure'],
+                    Carbon::rawParse($item['pubDate'])->toDate(),
+                    $hostSlug
+                );
                 $news->images()->sync($imageIds);
             }
 
@@ -79,7 +86,7 @@ class ParserNewsRbcJob implements ShouldQueue
         ParserNewsRbcJob::dispatch($this->url);
     }
 
-    public function saveImages(array $enclosure,\DateTime $date):array
+    public function saveImages(array $enclosure,\DateTime $date,$hostSlug):array
     {
         $data = $result = [];
 
@@ -93,7 +100,7 @@ class ParserNewsRbcJob implements ShouldQueue
             try {
                 $file = file_get_contents($item['url']);
                 $fileInfo = pathinfo($item['url']);
-                $path =  'img/'.$date->format('m/d/Y').Str::random().'.'.$fileInfo['extension'];
+                $path =  'img/'.$hostSlug.'/'.$date->format('Y/m/d/').Str::random().'.'.$fileInfo['extension'];
                 \Storage::disk('public')->put($path,$file);
                 $result[] = Image::insertGetId(['path'=>$path]);
             }catch (\ErrorException $e){

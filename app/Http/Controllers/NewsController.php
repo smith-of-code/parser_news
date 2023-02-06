@@ -61,6 +61,7 @@ class NewsController extends Controller
      *      tags={"News"},
      *      summary="",
      *      description="",
+     *      @OA\Parameter( name="news_url", in="query", required=true, description="page number", @OA\Schema( type="string" ) ),
      *      @OA\Response(
      *          response=200,
      *          description="Successful operation"
@@ -75,8 +76,8 @@ class NewsController extends Controller
      *      )
      *     )
      */
-    public function startParsing(){
-        ParserNewsRbcJob::dispatch('http://static.feed.rbc.ru/rbc/logical/footer/news.rss');
+    public function startParsing(Request $request){
+        ParserNewsRbcJob::dispatch($request->news_url);
     }
 
 }

@@ -184,7 +184,7 @@ return [
             'connection' => 'redis',
             'queue' => ['default','parser_news'],
             'balance' => 'auto',
-            'maxProcesses' => 1,
+            'maxProcesses' => 5,
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,
