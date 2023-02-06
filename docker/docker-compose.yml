@@ -1,0 +1,62 @@
+version: "3.7"
+services:
+
+
+  nginx:
+    image: nginx:alpine
+    container_name: ${APP_NAME}_nginx
+    restart: unless-stopped
+    environment:
+      - APP_NAME=${APP_NAME}_fpm
+    ports:
+      - "40310:80"
+    volumes:
+      - ../:/var/www
+      - ./nginx/templates:/etc/nginx/templates
+      - ./logs/${APP_NAME}-nginx_log:/var/log/nginx
+    networks:
+      - service_bridge
+
+  fpm:
+    build:
+      context: ./
+      dockerfile: Fpm.Dockerfile
+    environment:
+      XDEBUG_CONFIG: "remote_host=${XDEBUG_CONFIG_REMOTE_HOST} remote_enable=1"
+      PHP_IDE_CONFIG: "serverName=${APP_NAME}_docker"
+    image: ${APP_NAME}_fpm
+    container_name: ${APP_NAME}_fpm
+    restart: unless-stopped
+    working_dir: /var/www/
+    volumes:
+      - ../:/var/www
+    networks:
+      - service_bridge
+
+  mysql:
+    image: mariadb:10
+    container_name: ${APP_NAME}_mariadb
+    restart: unless-stopped
+    ports:
+      - "40311:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    volumes:
+      - ./mysql/start.sql:/docker-entrypoint-initdb.d/start.sql
+      - ../../${APP_NAME}_dbdata:/var/lib/mysql
+    networks:
+      - service_bridge
+
+  redis:
+    image: "redis:alpine"
+    container_name: ${APP_NAME}_redis
+    restart: unless-stopped
+    ports:
+      - "6379"
+    networks:
+      - service_bridge
+
+networks:
+  service_bridge:
+    name: ${DOCKER_NETWORK_NAME}_bridge
+    external: true
